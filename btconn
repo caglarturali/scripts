@@ -1,0 +1,47 @@
+#!/bin/bash
+
+###
+# (Auto)connect to a bluetooth device.
+# Needs 'FastConnectable=true' in /etc/bluetooth/main.conf
+# This program comes with absolutely no warranty.
+# Author: Çağlar Turalı <turali.js.org>
+##
+
+if ! [ -x "$(command -v bluetoothctl)" ]; then
+	printf "bluetoothctl is not found. Aborting.\n" >&2
+	exit 1
+fi
+
+if [ "$#" -eq 0 ]; then
+	printf "Provide the MAC address of your device.\n" >&2
+	exit 1
+fi
+
+BT_MAC="$1"
+WAIT_FOR=3
+
+btinfo() {
+	if [[ $(bluetoothctl info "$BT_MAC" | grep -i "$1") == *"yes"* ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+while ! btinfo "connected"; do
+	ops=(
+		'connect'
+	)
+	# Make sure the device is paired and trusted.
+	if ! (btinfo "paired" && btinfo "trusted"); then
+		ops=('pair' 'trust' "${ops[@]}")
+	fi
+
+	for op in "${ops[@]}"; do
+		printf "==> Performing the operation '%s' with the bluetooth device '%s'...\n" $op $BT_MAC
+		bluetoothctl $op $BT_MAC
+		sleep $WAIT_FOR
+	done
+done
+
+printf "Done.\n"

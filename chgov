@@ -1,0 +1,97 @@
+#!/bin/bash
+
+###
+# Lists and changes the CPU scaling governor.
+# This program comes with absolutely no warranty.
+# Author: Çağlar Turalı <turali.js.org>
+##
+
+# Global variables.
+CPU_DIR=/sys/devices/system/cpu
+AVAIL_GOVS_FILE=${CPU_DIR}/cpu0/cpufreq/scaling_available_governors
+ACTIVE_GOV_FILE=${CPU_DIR}/cpu0/cpufreq/scaling_governor
+SET_GOV_BLOB=${CPU_DIR}/cpu*/cpufreq/scaling_governor
+ACTIVE_GOVERNOR=$(cat $ACTIVE_GOV_FILE)
+
+# Build available governors array.
+declare -a GOVERNORS=()
+let i=0
+while read -ra line; do
+    for gov in "${line[@]}"; do
+        GOVERNORS[i]="$gov"
+        ((++i))
+    done
+done <$AVAIL_GOVS_FILE
+
+print_govs() {
+    [[ ! -z "$1" ]] && printf "$1\n"
+    printf "%s\t%s\n" "Code" "Governor"
+    for gvr_code in "${!GOVERNORS[@]}"; do
+        # Print info about governor.
+        local gov_name=${GOVERNORS[$gvr_code]}
+        printf "%4s\t%s" "$gvr_code" "$gov_name"
+        [[ "$gov_name" == "$ACTIVE_GOVERNOR" ]] && printf " ✓"
+        printf "\n"
+    done
+}
+
+usage() {
+    local options=(
+        "GOVERNOR_CODE"
+        "[-l | --list]"
+        "-h | --help"
+    )
+    local descriptions=(
+        "Sets scaling governor."
+        "Lists available governors."
+        "Shows this help."
+    )
+    [[ ! -z "$1" ]] && printf "$1\n"
+    printf "Usage:\n"
+    for idx in "${!options[@]}"; do
+        local opt=${options[$idx]}
+        local desc=${descriptions[$idx]}
+        printf "\t%s %-16s %s\n" "$(basename $0)" "$opt" "$desc"
+    done
+}
+
+if [ "$#" -lt 1 ]; then
+    print_govs "Available CPU governors:"
+    exit 0
+elif [ "$#" -gt 1 ]; then
+    usage
+    exit 0
+else
+    case "$1" in
+    -h | --help)
+        usage "Lists and changes the CPU scaling governor."
+        exit 0
+        ;;
+    -l | --list)
+        print_govs "Available CPU governors:"
+        exit 0
+        ;;
+    *)
+        gov_to_set=${GOVERNORS[$1]}
+        re='^[0-9]+$'
+        if [[ $1 =~ $re ]] && [[ ! -z $gov_to_set ]]; then
+            # Compare against active governor.
+            if [[ "$gov_to_set" == "$ACTIVE_GOVERNOR" ]]; then
+                printf "Governor is already set to '%s'. Aborting.\n" "$gov_to_set"
+                exit 0
+            fi
+
+            # Set governor
+            printf "Setting '%s' as active CPU governor...\n" "$gov_to_set"
+            echo $gov_to_set | sudo tee $SET_GOV_BLOB >/dev/null
+            if [[ $? -eq 0 ]]; then
+                printf "Done.\n"
+                exit 0
+            fi
+        else
+            print_govs "Unknown option. Provide a valid governor code or a flag."
+            exit 1
+        fi
+        ;;
+    esac
+fi

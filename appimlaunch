@@ -1,0 +1,55 @@
+#!/bin/bash
+
+###
+# AppImage launcher.
+# Launches the newest AppImage in the given directory.
+# Ignores the extension. So it can be used to launch any executable, really.
+# This program comes with absolutely no warranty.
+# Author: Çağlar Turalı <turali.js.org>
+##
+
+usage() {
+	local options=(
+		"PATH"
+		"PATH [KEYWORD]"
+		"-h | --help"
+	)
+	local descriptions=(
+		"Path to search for files."
+		"Optional keyword for filtering files."
+		"Shows this help."
+	)
+	[[ ! -z "$1" ]] && printf "$1\n\n"
+	printf "Launches the newest AppImage (determined by modification time) in the given directory.\n"
+	printf "Usage:\n"
+	for idx in "${!options[@]}"; do
+		printf "\t%s %-16s %s\n" "$(basename $0)" "${options[$idx]}" "${descriptions[$idx]}"
+	done
+}
+
+if [ "$#" -lt 1 ]; then
+	usage "Provide at least a path that contains an AppImage to run."
+	exit 0
+else
+	case "$1" in
+	-h | --help)
+		usage
+		exit 0
+		;;
+	*)
+		target_dir=$1
+		filter_kw=$2
+		exec_file=$(ls -t $target_dir 2>/dev/null | grep -i "$filter_kw" | head -1)
+		full_path="${target_dir:+$target_dir/}$exec_file"
+		exec_path=$(realpath ${full_path})
+
+		if [ -f "$exec_path" ]; then
+			printf "Launching %s...\n" "$exec_file"
+			eval $exec_path
+		else
+			printf "No executable file found.\n"
+			exit 1
+		fi
+		;;
+	esac
+fi
